@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import io from "socket.io-client";
 
-const socket = io("http://localhost:81"); // Replace with your server URL
+const socket = io("http://34.47.174.23:81"); // Replace with your server URL
 
 const VideoCall = () => {
   const [room, setRoom] = useState("");
