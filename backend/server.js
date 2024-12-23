@@ -6,11 +6,11 @@ const app = express();
 const cors = require("cors");
 const server = http.createServer(app);
 
-app.use(cors({ origin: ["http://localhost:3000", "http://34.47.174.23:81"] }));
+app.use(cors({ origin: ["http://localhost:3000", "http://35.244.58.60"] }));
 
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://34.47.174.23:81"], // Allow your React frontend
+    origin: ["http://localhost:3000", "http://35.244.58.60"], // Allow your React frontend
     methods: ["GET", "POST"],
   },
 });
