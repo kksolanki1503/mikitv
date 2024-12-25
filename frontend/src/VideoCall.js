@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from "react";
 import io from "socket.io-client";
 
-const socket = io("http://losthost:5200"); // Replace with your server URL
+const socket = io("https://thadi.in", { path: "/socket.io/" }); // Replace with your server URL
 
 const VideoCall = () => {
   const [room, setRoom] = useState("");
