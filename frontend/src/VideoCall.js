@@ -1,12 +1,11 @@
 import React, { useRef, useState, useEffect } from "react";
 import io from "socket.io-client";
-
-const socket = io("https://thadi.in", { path: "/socket.io/" }); // Replace with your server URL
+import AppConstant from "../src/AppConstant/AppConstant";
+const socket = io(AppConstant.baseURL, { path: "/socket.io/" }); // Replace with your server URL
 
 const VideoCall = () => {
-  const [room, setRoom] = useState("");
   const [partnerId, setPartnerId] = useState(null);
-
+  // console.log(partnerId, "partnerId");
   const localVideoRef = useRef();
   const remoteVideoRef = useRef();
   const peerConnectionRef = useRef();
@@ -53,36 +52,38 @@ const VideoCall = () => {
       })
       .catch(console.error);
 
-    socket.on("otherUser", (userId) => {
+    socket.on("userJoined", (userId) => {
+      console.log("Paired with:", userId);
       setPartnerId(userId);
       callUser(userId);
     });
 
-    socket.on("userJoined", (userId) => {
-      setPartnerId(userId);
-    });
-
     socket.on("offer", async ({ sdp, caller }) => {
+      console.log("Received offer from:", caller);
       if (!peerConnectionRef.current) createPeerConnection();
 
       try {
         await peerConnectionRef.current.setRemoteDescription(
           new RTCSessionDescription(sdp)
         );
+        console.log("Set remote description for offer");
         const answer = await peerConnectionRef.current.createAnswer();
         await peerConnectionRef.current.setLocalDescription(answer);
         socket.emit("answer", { sdp: answer, target: caller });
+        console.log("Sent answer to:", caller);
       } catch (error) {
         console.error("Error handling offer:", error);
       }
     });
 
     socket.on("answer", async ({ sdp }) => {
+      console.log("Received answer");
       if (peerConnectionRef.current) {
         try {
           await peerConnectionRef.current.setRemoteDescription(
             new RTCSessionDescription(sdp)
           );
+          console.log("Set remote description for answer");
         } catch (error) {
           console.error("Error handling answer:", error);
         }
@@ -90,28 +91,28 @@ const VideoCall = () => {
     });
 
     socket.on("ice-candidate", (payload) => {
+      console.log("Received ICE candidate");
       const candidate = new RTCIceCandidate(payload.candidate);
       peerConnectionRef.current.addIceCandidate(candidate);
     });
   }, []);
 
-  const joinRoom = () => {
-    socket.emit("joinRoom", room);
-  };
-
   const createPeerConnection = () => {
+    console.log("Creating peer connection");
     peerConnectionRef.current = new RTCPeerConnection(config);
 
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach((track) => {
         peerConnectionRef.current.addTrack(track, localStreamRef.current);
       });
+      console.log("Local tracks added to peer connection");
     }
 
     peerConnectionRef.current.onnegotiationneeded = async () => {
       try {
         const offer = await peerConnectionRef.current.createOffer();
         await peerConnectionRef.current.setLocalDescription(offer);
+        console.log("Created and set local offer");
         socket.emit("offer", { sdp: offer, target: partnerId });
       } catch (error) {
         console.error("Error during negotiation:", error);
@@ -119,13 +120,20 @@ const VideoCall = () => {
     };
 
     peerConnectionRef.current.ontrack = (event) => {
+      console.log("Received remote track");
       if (remoteVideoRef.current.srcObject !== event.streams[0]) {
         remoteVideoRef.current.srcObject = event.streams[0];
+        console.log("Set remote stream");
       }
     };
 
     peerConnectionRef.current.onicecandidate = (event) => {
       if (event.candidate) {
+        if (!partnerId) {
+          console.error("Partner ID is null. Cannot send ICE candidate.");
+          return;
+        }
+        console.log("Sending ICE candidate");
         socket.emit("ice-candidate", {
           target: partnerId,
           candidate: event.candidate,
@@ -146,21 +154,19 @@ const VideoCall = () => {
   };
 
   return (
-    <div>
-      <h1>Video Call</h1>
-      <input
-        type="text"
-        value={room}
-        onChange={(e) => setRoom(e.target.value)}
-        placeholder="Enter room name"
-      />
-      <button onClick={joinRoom}>Join Room</button>
-      <div
-        style={{ display: "flex", marginTop: "20px", border: "2px solid red" }}
-      >
-        <video ref={localVideoRef} autoPlay muted style={{ width: "45%" }} />
-        <video ref={remoteVideoRef} autoPlay style={{ width: "45%" }} />
+    <div className="border border-red-500 sm:px-[80px]">
+      <div className="border border-red-600 flex  min-h-[90vh]">
+        <div className="border border-red-500 w-full h-fit">
+          <video ref={localVideoRef} autoPlay muted className="w-full h-fit" />
+        </div>
+
+        <div className="border border-red-600 w-full">
+          <video ref={remoteVideoRef} autoPlay className="w-full h-auto" />
+        </div>
       </div>
+
+      <button>Start</button>
+      <button>Stop</button>
     </div>
   );
 };

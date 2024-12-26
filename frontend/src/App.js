@@ -4,7 +4,7 @@ import VideoCall from "./VideoCall";
 
 function App() {
   return (
-    <div className="App">
+    <div className="max-w-[1920px] mx-auto">
       <VideoCall />
     </div>
   );
