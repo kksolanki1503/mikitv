@@ -1,88 +1,69 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
+import express from "express";
+import { createServer } from "http";
+import { Server } from "socket.io";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 const app = express();
-const cors = require("cors");
-const server = http.createServer(app);
-let waitingUsers = [];
-app.use(
-  cors({
-    origin: ["http://localhost:3000", "https://thadi.in/"],
-  })
-);
-
+const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "https://thadi.in/"], // Allow your React frontend
+    origin: "http://localhost:3000",
     methods: ["GET", "POST"],
   },
 });
 
-app.get("/test", (req, res) => {
-  console.log("working");
-  return res.status(200).json({ status: "success" });
-});
+// Keep track of all connected users and their status
+const users = new Map();
 
 io.on("connection", (socket) => {
-  console.log(`User connected: ${socket.id}`);
+  console.log("User connected:", socket.id);
+  users.set(socket.id, { status: "available" });
 
-  // Add the new user to the waiting list
-  waitingUsers.push(socket);
+  socket.on("find_peer", () => {
+    console.log("User searching for peer:", socket.id);
 
-  // Check if there's another user waiting
-  if (waitingUsers.length >= 2) {
-    // Pair the first two users in the queue
-    const [user1, user2] = waitingUsers.splice(0, 2);
+    // Find an available peer
+    const availablePeer = Array.from(users.entries()).find(
+      ([id, user]) => id !== socket.id && user.status === "available"
+    );
 
-    // Create a unique room ID for the pair
-    const roomID = `room-${user1.id}-${user2.id}`;
+    if (availablePeer) {
+      const [peerId] = availablePeer;
 
-    // Add users to the room
-    user1.join(roomID);
-    user2.join(roomID);
+      // Update both users' status
+      users.set(socket.id, { status: "busy" });
+      users.set(peerId, { status: "busy" });
 
-    // Notify users they are paired
-    user1.emit("userJoined", user2.id);
-    user2.emit("userJoined", user1.id);
+      // Notify both users
+      socket.emit("peer_found", peerId);
+      io.to(peerId).emit("peer_found", socket.id);
 
-    console.log(`Paired users ${user1.id} and ${user2.id} in room ${roomID}`);
-  }
-  // socket.on("joinRoom", (room) => {
-  //   socket.join(room);
-  //   const otherUsers = Array.from(io.sockets.adapter.rooms.get(room) || []);
-  //   const rooms = Array.from(io.sockets.adapter.rooms || []);
-
-  //   if (otherUsers.length > 0) {
-  //     socket.emit("otherUser", otherUsers[0]); // Notify the new user about the existing user
-  //     io.to(otherUsers[0]).emit("userJoined", socket.id); // Notify the existing user about the new user
-  //   }
-  // });
-
-  socket.on("offer", (payload) => {
-    console.log(`Offer received from ${socket.id} to ${payload.target}`);
-    io.to(payload.target).emit("offer", payload);
-  });
-
-  socket.on("answer", (payload) => {
-    console.log(`Answer received from ${socket.id} to ${payload.target}`);
-    io.to(payload.target).emit("answer", payload);
-  });
-
-  socket.on("ice-candidate", (payload) => {
-    if (!payload.target) {
-      console.error("Target user is null. Cannot send ICE candidate.");
-      return;
+      console.log(`Matched peers: ${socket.id} <-> ${peerId}`);
+    } else {
+      console.log("No available peer found for:", socket.id);
     }
-    io.to(payload.target).emit("ice-candidate", payload);
+  });
+
+  socket.on("signal", ({ peerId, signal }) => {
+    console.log(`Signal from ${socket.id} to ${peerId}:`, signal.type);
+    io.to(peerId).emit("signal", {
+      peerId: socket.id,
+      signal,
+    });
   });
 
   socket.on("disconnect", () => {
-    console.log(`User disconnected: ${socket.id}`);
-    waitingUsers = waitingUsers.filter((user) => user.id !== socket.id);
+    console.log("User disconnected:", socket.id);
+    users.delete(socket.id);
   });
 });
 
-server.listen(5200, () => {
-  console.log("Server running on http://localhost:5200");
+const PORT = process.env.PORT || 5200;
+
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
