@@ -6,7 +6,7 @@ class SocketService {
       return SocketService.instance;
     }
 
-    this.socket = io("http://localhost:5200");
+    this.socket = io("https://thadi.in");
     this.setupListeners();
     SocketService.instance = this;
   }
