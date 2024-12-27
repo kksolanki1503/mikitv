@@ -8,6 +8,7 @@ export class WebRTCService {
   }
 
   initializePeerConnection() {
+    console.log("initializeing peer connection");
     this.peerConnection = new RTCPeerConnection({
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
@@ -16,6 +17,7 @@ export class WebRTCService {
     });
 
     this.peerConnection.onicecandidate = (event) => {
+      console.log("initial onicecandidate");
       if (
         event.candidate &&
         this.onIceCandidateCallback &&
@@ -26,6 +28,8 @@ export class WebRTCService {
     };
 
     this.peerConnection.ontrack = (event) => {
+      console.log("initial ontrack");
+
       if (this.onTrackCallback && event.streams[0]) {
         this.onTrackCallback(event.streams[0]);
       }
@@ -42,6 +46,7 @@ export class WebRTCService {
   }
 
   async createOffer(peerId) {
+    console.log("creating offer");
     if (!this.peerConnection) return null;
     this.currentPeerId = peerId;
 
@@ -75,6 +80,7 @@ export class WebRTCService {
   }
 
   async handleOffer(offer, peerId) {
+    console.log("handling offer with offer:", offer, " and peerid:", peerId);
     if (!this.peerConnection) return null;
     this.currentPeerId = peerId;
 
@@ -123,5 +129,9 @@ export class WebRTCService {
     this.currentPeerId = null;
     this.onIceCandidateCallback = null;
     this.onTrackCallback = null;
+  }
+
+  onConnectionStateChange(callback) {
+    this.onStateChangeCallback = callback;
   }
 }

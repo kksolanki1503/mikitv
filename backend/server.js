@@ -21,9 +21,10 @@ const users = new Map();
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
-  users.set(socket.id, { status: "available" });
 
   socket.on("find_peer", () => {
+    users.set(socket.id, { status: "available" });
+    console.log(users, "all users");
     console.log("User searching for peer:", socket.id);
 
     // Find an available peer
@@ -33,6 +34,7 @@ io.on("connection", (socket) => {
 
     if (availablePeer) {
       const [peerId] = availablePeer;
+      console.log("available user", peerId);
 
       // Update both users' status
       users.set(socket.id, { status: "busy" });
@@ -46,6 +48,7 @@ io.on("connection", (socket) => {
     } else {
       console.log("No available peer found for:", socket.id);
     }
+    console.log(users, "all users");
   });
 
   socket.on("signal", ({ peerId, signal }) => {
