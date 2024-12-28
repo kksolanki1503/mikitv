@@ -1,206 +1,250 @@
-import React, { useState, useCallback, useEffect } from "react";
-import { VideoPlayer } from "./components/VideoPlayer";
-import { Controls } from "./components/Controls";
-import { WebRTCService } from "./services/webrtc";
-import { socketService } from "./services/socket";
-import { useVideoStore } from "./store/videoStore";
-import { useMediaStream } from "./hooks/useMediaStream";
-import { useVideoControls } from "./hooks/useVideoControls";
-import { Video } from "lucide-react";
+import React, { useEffect, useState, useRef } from "react";
+import io from "socket.io-client";
+import "./App.css";
 
-let webrtc = null;
+const SERVER_URL = "http://localhost:5200";
+const socket = io(SERVER_URL);
 function App() {
-  // const [webrtc, setWebrtc] = useState(null);
-  const {
-    localStream,
-    remoteStream,
-    isConnected,
-    isFinding,
-    setRemoteStream,
-    setIsConnected,
-    setIsFinding,
-  } = useVideoStore();
+  // const [localStream, setLocalStream] = useState(null);
+  let localStreamRef = useRef(null);
+  let remoteStreamRef = useRef(null);
 
-  const { isVideoEnabled, isAudioEnabled, toggleVideo, toggleAudio } =
-    useVideoControls();
+  const [connected, setConnected] = useState(false);
+  const [isFinding, setIsFinding] = useState(false);
 
-  useMediaStream();
+  // const [socket, setSocket] = useState(null);
+  // const [peerConnection, setPeerConnection] = useState(null);
+  let peerConnectionRef = useRef(null);
+  const [partner, setPartner] = useState(null);
+  // const partnerRef = useRef(null);
 
-  const handleSignal = useCallback(
-    async ({ peerId, signal }) => {
-      console.log(
-        "handling signal with peerId:",
-        peerId,
-        " and signal:",
-        signal
-      );
-      console.log(webrtc, "webrtc");
-      if (!webrtc) {
-        console.log("webrtc is null to return ");
-        return;
-      }
-      try {
-        if (signal.type === "offer") {
-          const answer = await webrtc.handleOffer(signal.offer, peerId);
-          console.log("this is the answer:", answer);
-          if (answer) {
-            socketService.sendSignal(peerId, { type: "answer", answer });
-          }
-        } else if (signal.type === "answer") {
-          await webrtc.handleAnswer(signal.answer);
-        } else if (signal.type === "ice-candidate" && signal.candidate) {
-          await webrtc.addIceCandidate(signal.candidate);
-        }
-      } catch (error) {
-        console.error("Signal handling error:", error);
-        setIsFinding(false);
-      }
-    },
-    [webrtc, setIsFinding]
-  );
+  const localVideoRef = useRef();
+  const remoteVideoRef = useRef();
 
-  // useEffect(() => {
-  //   console.log(webrtc, "webrtc");
-  // }, [webrtc]);
-
-  const handleFindPeer = () => {
-    if (!localStream) return;
-    console.log("handling find peer");
+  const startCall = () => {
     setIsFinding(true);
-    const rtc = new WebRTCService();
-    console.log(rtc, "this is rtc");
-    // setWebrtc(rtc);
-    webrtc = rtc;
-    console.log(webrtc, "set webrtc");
+    socket.emit("findPeer");
+  };
 
-    rtc.addTrack(localStream);
+  const createPeerConnection = async () => {
+    const configuration = {
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    };
+    const peerConnection = new RTCPeerConnection(configuration);
+    peerConnectionRef.current = peerConnection;
 
-    rtc.onTrack((stream) => {
-      console.log("Received remote stream", stream);
-      setRemoteStream(stream);
-      setIsConnected(true);
+    if (peerConnectionRef.current && localStreamRef.current) {
+      console.log("adding localstream to track");
+      localStreamRef.current.getTracks().forEach((track) => {
+        peerConnectionRef.current.addTrack(track, localStreamRef.current);
+      });
+    } else {
+      console.log("no local stream");
+    }
+
+    if (partner) {
+      console.log("partner found");
       setIsFinding(false);
-    });
+      if (partner.info.role === "a") {
+        // Create and send an offer
+        console.log("creating offer");
+        const offer = await peerConnectionRef.current.createOffer();
+        await peerConnectionRef.current.setLocalDescription(offer);
+        console.log("offer:", offer);
+        console.log("send offer to ", partner.id);
+        socket.emit("offer", { offer, to: partner.id });
 
-    rtc.onConnectionStateChange((state) => {
-      console.log("Connection state changed:", state);
-      if (state === "connected") {
-        setIsConnected(true);
-        setIsFinding(false);
-      } else if (
-        state === "failed" ||
-        state === "disconnected" ||
-        state === "closed"
-      ) {
-        setIsConnected(false);
-        setIsFinding(false);
-        setRemoteStream(null);
+        socket.on("answer", async ({ answer, from }) => {
+          console.log("answer receiver", answer, "from ", from);
+          const remoteDesc = new RTCSessionDescription(answer);
+          await peerConnection.setRemoteDescription(remoteDesc);
+        });
+      } else if (partner.info.role === "o") {
+        // Wait for an offer, create and send an answer
+        socket.on("offer", async ({ offer, from }) => {
+          console.log("offer receiver: ", offer, "from ", from);
+
+          await peerConnection.setRemoteDescription(offer);
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
+          console.log("send answer to ", from);
+          socket.emit("answer", { answer, to: from });
+        });
       }
-    });
+    } else {
+      console.log("No partner found");
+    }
+    //iceCandidate setting
+    console.log("iceCandidate:");
+    if (!peerConnectionRef.current) {
+      console.log("no peerConnectinoRef found");
+      return;
+    } else {
+      peerConnectionRef.current.addEventListener("icecandidate", (event) => {
+        // console.log("entered in iceCandidate");
 
-    rtc.onIceCandidate((candidate, peerId) => {
-      console.log("onIceCandidate", candidate, "peerId", peerId);
-      socketService.sendSignal(peerId, { type: "ice-candidate", candidate });
-    });
-
-    socketService.onPeerFound(async (peerId) => {
-      console.log("on Peer found trigger");
-      rtc.setPeerId(peerId);
-      try {
-        const offer = await rtc.createOffer(peerId);
-        console.log(offer, "offer created");
-        if (offer) {
-          socketService.sendSignal(peerId, { type: "offer", offer });
+        if (event.candidate) {
+          // Send the candidate to the remote peer via signaling
+          console.log(
+            "sending candidate :",
+            event.candidate,
+            " to ",
+            partner.id
+          );
+          socket.emit("ice-candidate", {
+            candidate: event.candidate,
+            to: partner.id,
+          });
+        } else {
+          console.log("no candidate found");
         }
+      });
+    }
+
+    // peerConnectionRef.current.onicecandidate = (event) => {
+    //   if (event.candidate) {
+    //     // Send the candidate to the remote peer via signaling
+    //     console.log("sending candidate :", event.candidate, " to ", partner.id);
+    //     socket.emit("ice-candidate", {
+    //       candidate: event.candidate,
+    //       to: partner.id,
+    //     });
+    //   } else {
+    //     console.log("no candidate found");
+    //   }
+    // };
+    //received icecandiadte
+    socket.on("ice-candidate", async ({ candidate, from }) => {
+      try {
+        console.log("ice-candidate receiver: ", candidate, "from ", from);
+        await peerConnectionRef.current.addIceCandidate(
+          new RTCIceCandidate(candidate)
+        );
+        console.log("ICE candidate added successfully");
       } catch (error) {
-        console.error("Error creating offer:", error);
-        setIsFinding(false);
+        console.error("Error adding ICE candidate:", error);
       }
     });
 
-    socketService.onSignal(handleSignal);
-    socketService.findPeer();
+    // Listen for connectionstatechange on the local RTCPeerConnection
+    peerConnectionRef.current.addEventListener(
+      "connectionstatechange",
+      (event) => {
+        console.log("state: ", peerConnectionRef.current.connectionState);
+        if (peerConnectionRef.current.connectionState === "connected") {
+          setConnected(true);
+        }
+      }
+    );
+
+    //remote trace
+    peerConnectionRef.current.addEventListener("track", async (event) => {
+      console.log("receiving remote track");
+      // console.log(event.streams);
+      const [remoteStream] = event.streams;
+      console.log(remoteStream, "remoteStream");
+      remoteStreamRef.current = remoteStream;
+      remoteVideoRef.current.srcObject = remoteStreamRef.current;
+    });
   };
 
-  const handleDisconnect = () => {
-    webrtc?.cleanup();
-    // setWebrtc(null);
-    webrtc = null;
-    setRemoteStream(null);
-    setIsConnected(false);
-    setIsFinding(false);
+  const localStreaming = async () => {
+    try {
+      const localStream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
+      localStreamRef.current = localStream;
+
+      localVideoRef.current.srcObject = localStream;
+      console.log("Got MediaStream:", localStream);
+    } catch (error) {
+      console.error("Error accessing media devices.", error);
+    }
   };
 
-  console.log(localStream, "localStream");
-  console.log(remoteStream, "remoteStream");
-  console.log(isConnected, "isConnected");
-  console.log(isFinding, "isFinding");
+  useEffect(() => {
+    const setting = async () => {
+      await createPeerConnection();
+      // console.log(partner, "partner");
+    };
+
+    setting();
+  }, [partner]);
+
+  const endCall = () => {
+    // localStreamRef = null;
+    remoteStreamRef = null;
+    setConnected(false);
+    peerConnectionRef.current.close();
+    setPartner(null);
+  };
+
+  useEffect(() => {
+    // firsttime initiallization
+
+    const setting = async () => {
+      await localStreaming();
+      socket.on("peerFound", (peerInfo) => {
+        setPartner(peerInfo);
+      });
+    };
+    setting();
+
+    // Return cleanup function
+    return () => {
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+      }
+    };
+  }, []);
 
   return (
-    <div className="min-h-screen p-8 text-white bg-gray-900">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-2">
-            <Video className="w-8 h-8" />
-            {/* <VideoPlayer
-              stream={remoteStream}
-              muted
-              className="w-full h-full border"
-            /> */}
-            <h1 className="text-2xl font-bold">Random Video Chat</h1>
-          </div>
-          {!isConnected && !isFinding && (
-            <button
-              onClick={handleFindPeer}
-              className="px-6 py-2 font-medium bg-blue-500 rounded-lg hover:bg-blue-600"
-            >
-              Start Chat
-            </button>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-          <div className="relative overflow-hidden bg-gray-800 rounded-lg aspect-video">
-            <VideoPlayer stream={localStream} muted className="w-full h-full" />
-            <div className="absolute bottom-4 left-4">
-              <span className="px-3 py-1 rounded-lg bg-gray-900/75">You</span>
-            </div>
-          </div>
-
-          <div className="relative overflow-hidden bg-gray-800 rounded-lg aspect-video">
-            {remoteStream ? (
-              <VideoPlayer stream={remoteStream} className="w-full h-full " />
-            ) : (
-              <div className="flex items-center justify-center h-full">
-                {isFinding ? (
-                  <div className="text-center">
-                    <p className="mb-2 text-lg">Finding a peer...</p>
-                    <div className="w-8 h-8 mx-auto border-b-2 border-white rounded-full animate-spin"></div>
-                  </div>
-                ) : (
-                  <p className="text-lg">Waiting to start...</p>
-                )}
-              </div>
-            )}
-            {remoteStream && (
-              <div className="absolute bottom-4 left-4">
-                <span className="px-3 py-1 rounded-lg bg-gray-900/75">
-                  Peer
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="flex justify-center mt-8">
-          <Controls
-            isVideoEnabled={isVideoEnabled}
-            isAudioEnabled={isAudioEnabled}
-            onToggleVideo={toggleVideo}
-            onToggleAudio={toggleAudio}
-            onDisconnect={handleDisconnect}
+    <div className="app max-w-[1990px] sm:px-[80px] px-[20px] min-h-screen bg-[#0B192C] nunito-font">
+      <div className="flex flex-col video-container sm:flex-row ">
+        <div className="w-full bg-[#1E3E62] ">
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className="object-cover w-full local-video"
           />
         </div>
+        <div className="w-full   bg-[#1E3E62] h-auto flex justify-center items-center text-white text-[2rem] relative">
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            className={`w-full remote-video h-full  ${
+              !isFinding && connected ? "block" : "hidden"
+            }`}
+          />
+          {isFinding ? (
+            <div className="h-auto">Finding</div>
+          ) : (
+            <div className={`${connected ? "hidden" : ""} h-auto`}>MikiTV</div>
+          )}
+        </div>
+      </div>
+      <div className="controls pt-[10px] flex gap-3">
+        <button
+          className="bg-[#FF6500] sm:px-[50px] px-[10px] sm:py-[10px] text-white sm:text-[3rem] text-[2rem] rounded-xl"
+          onClick={startCall}
+          disabled={connected}
+        >
+          Start
+        </button>
+        <button
+          className="bg-[#FF6500] sm:px-[50px] px-[10px] sm:py-[10px] text-white sm:text-[3rem] text-[2rem] rounded-xl"
+          onClick={endCall}
+          disabled={!connected}
+        >
+          End
+        </button>
+        {/* <button onClick={nextUser} disabled={!connected}>
+          Next
+        </button> */}
       </div>
     </div>
   );

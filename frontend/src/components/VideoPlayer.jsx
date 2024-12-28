@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 
 export function VideoPlayer({ stream, muted = false, className = "" }) {
+  console.log(stream, "stream");
   const videoRef = useRef(null);
 
   useEffect(() => {

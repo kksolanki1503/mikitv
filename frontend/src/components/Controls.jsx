@@ -1,5 +1,5 @@
-import React from "react";
-import { Video, VideoOff, Mic, MicOff, PhoneOff } from "lucide-react";
+import React from 'react';
+import { Video, VideoOff, Mic, MicOff, PhoneOff } from 'lucide-react';
 
 export function Controls({
   onToggleVideo,
@@ -13,9 +13,7 @@ export function Controls({
       <button
         onClick={onToggleVideo}
         className={`p-3 rounded-full ${
-          isVideoEnabled
-            ? "bg-gray-700 hover:bg-gray-600"
-            : "bg-red-500 hover:bg-red-600"
+          isVideoEnabled ? 'bg-gray-700 hover:bg-gray-600' : 'bg-red-500 hover:bg-red-600'
         }`}
       >
         {isVideoEnabled ? (
@@ -27,9 +25,7 @@ export function Controls({
       <button
         onClick={onToggleAudio}
         className={`p-3 rounded-full ${
-          isAudioEnabled
-            ? "bg-gray-700 hover:bg-gray-600"
-            : "bg-red-500 hover:bg-red-600"
+          isAudioEnabled ? 'bg-gray-700 hover:bg-gray-600' : 'bg-red-500 hover:bg-red-600'
         }`}
       >
         {isAudioEnabled ? (
