@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import io from "socket.io-client";
 import "./App.css";
 
-const SERVER_URL = "http://localhost:5200";
+const SERVER_URL = "https://thadi.in";
 const socket = io(SERVER_URL);
 function App() {
   // const [localStream, setLocalStream] = useState(null);
