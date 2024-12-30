@@ -287,6 +287,9 @@ function App() {
             playsInline
             muted
             className="object-contain  local-video h-[40vh]  sm:h-[80vh] "
+            style={{
+              transform: "scaleX(-1)", // Correct mirroring issue
+            }}
           />
           <div
             className="absolute bottom-[2vw] left-[2vw] text-white   bg-black/70 px-[10px] py-[2px] rounded-full"
@@ -300,9 +303,12 @@ function App() {
             ref={remoteVideoRef}
             autoPlay
             playsInline
-            className={` remote-video h-[40vh]  sm:h-[80vh] border  object-contain  ${
+            className={` remote-video h-[40vh]  sm:h-[80vh] object-contain  ${
               !isFinding && connected ? "block" : "hidden"
             }`}
+            style={{
+              transform: "scaleX(-1)", // Correct mirroring issue
+            }}
           />
           {isFinding ? (
             <div className="h-[40vh]  sm:h-[80vh] flex items-center">
