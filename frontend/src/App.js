@@ -10,6 +10,10 @@ const SERVER_URL = AppConstant.baseUrl;
 const socket = io(SERVER_URL);
 
 function App() {
+  if (process.env.NODE_ENV === "production") {
+    // Disable all console methods in production
+    console.log = console.info = console.warn = console.error = () => {};
+  }
   // const [localStream, setLocalStream] = useState(null);
   let localStreamRef = useRef(null);
   let remoteStreamRef = useRef(null);
@@ -233,14 +237,14 @@ function App() {
 
   const endCall = () => {
     // localStreamRef = null;
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
+    if (peerConnectionRef?.current) {
+      peerConnectionRef?.current?.close();
 
       peerConnectionRef = null;
     } else {
       console.log("no peerREf found");
     }
-    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+    if (remoteVideoRef?.current) remoteVideoRef.current.srcObject = null;
     console.log("stream clear");
     remoteStreamRef = null;
     console.log("partner clear");
@@ -278,88 +282,189 @@ function App() {
   }, []);
 
   return (
-    <div className="app max-w-[1990px] mx-auto px-[2.5vw] min-h-screen bg-[#212121] nunito-font  ">
-      <div className="flex flex-col items-center justify-center video-container sm:flex-row ">
-        <div className=" bg-[#161616]      relative sm:w-1/2 w-full flex items-center justify-center">
-          <video
-            ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
-            className="object-contain  local-video h-[40vh]  sm:h-[80vh] "
-            style={{
-              transform: "scaleX(-1)", // Correct mirroring issue
-            }}
-          />
-          <div
-            className="absolute bottom-[2vw] left-[2vw] text-white   bg-black/70 px-[10px] py-[2px] rounded-full"
-            style={{ fontSize: "clamp(1rem,2.5vw,1.2rem)" }}
-          >
-            you
+    <>
+      <div className="app max-w-[1990px] mx-auto px-[2.5vw] min-h-screen bg-[#212121] nunito-font">
+        <div className="flex flex-col items-center justify-center video-container sm:flex-row ">
+          <div className=" bg-[#161616]      relative sm:w-1/2 w-full flex items-center justify-center">
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="object-contain  local-video h-[40vh]  sm:h-[80vh] "
+              style={{
+                transform: "scaleX(-1)", // Correct mirroring issue
+              }}
+            />
+            <div
+              className="absolute bottom-[2vw] left-[2vw] text-white   bg-black/70 px-[10px] py-[2px] rounded-full"
+              style={{ fontSize: "clamp(1rem,2.5vw,1.2rem)" }}
+            >
+              you
+            </div>
+          </div>
+          <div className=" w-full sm:w-1/2 text-center   bg-[#161616] h-auto flex justify-center items-center text-white text-[2rem] relative">
+            <video
+              ref={remoteVideoRef}
+              autoPlay
+              playsInline
+              className={` remote-video h-[40vh]  sm:h-[80vh] object-contain  ${
+                !isFinding && connected ? "block" : "hidden"
+              }`}
+              style={{
+                transform: "scaleX(-1)", // Correct mirroring issue
+              }}
+            />
+            {isFinding ? (
+              <div className="h-[40vh]  sm:h-[80vh] flex items-center">
+                Finding
+              </div>
+            ) : (
+              <div>
+                <img
+                  src="/static/logo.svg"
+                  className={`${
+                    connected ? "hidden" : "block"
+                  } h-[40vh]  sm:h-[80vh]  flex items-center z-[999]`}
+                  alt="miki tv"
+                />
+              </div>
+            )}
           </div>
         </div>
-        <div className=" w-full sm:w-1/2 text-center   bg-[#161616] h-auto flex justify-center items-center text-white text-[2rem] relative">
-          <video
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            className={` remote-video h-[40vh]  sm:h-[80vh] object-contain  ${
-              !isFinding && connected ? "block" : "hidden"
-            }`}
-            style={{
-              transform: "scaleX(-1)", // Correct mirroring issue
-            }}
-          />
-          {isFinding ? (
-            <div className="h-[40vh]  sm:h-[80vh] flex items-center">
-              Finding
-            </div>
-          ) : (
-            <div
-              className={`${
-                connected ? "hidden" : ""
-              } h-[40vh]  sm:h-[80vh]  flex items-center`}
+        {/* controller */}
+        <div
+          className="controls pt-[10px] flex gap-3 justify-start items-center flex-wrap"
+          style={{ fontSize: "clamp(2rem,4vw,3rem)" }}
+        >
+          {isStarted ? (
+            <button
+              className="button"
+              // style={{padding:""}}
+              onClick={() => {
+                endCall();
+                startCall();
+              }}
             >
-              MikiTV
-            </div>
+              Next
+            </button>
+          ) : (
+            <button className=" button" onClick={startCall}>
+              Start
+            </button>
           )}
+          {isStarted && (
+            <button className="button" onClick={endCall}>
+              {isFinding ? `Stop` : `End`}
+            </button>
+          )}
+
+          <button className="button" onClick={toggleVideo}>
+            {isVideo ? <Video /> : <VideoOff />}
+          </button>
+          <button className="button" onClick={toggleMic}>
+            {isMic ? <Mic /> : <MicOff />}
+          </button>
         </div>
       </div>
 
-      {/* controller */}
-      <div
-        className="controls pt-[10px] flex gap-3 justify-start items-center flex-wrap"
-        style={{ fontSize: "clamp(2rem,4vw,3rem)" }}
-      >
-        {isStarted ? (
-          <button
-            className="button"
-            // style={{padding:""}}
-            onClick={() => {
-              endCall();
-              startCall();
-            }}
-          >
-            Next
-          </button>
-        ) : (
-          <button className=" button" onClick={startCall}>
-            Start
-          </button>
-        )}
+      <div>
+        <header class="bg-blue-600 text-white p-6 text-center">
+          <h1 class="text-4xl font-bold mb-4">
+            Welcome to MikiTV - Random Video Chat Platform
+          </h1>
+          <p class="text-lg">
+            Connect with strangers worldwide through live video calls and enjoy
+            seamless online video chatting. MikiTV makes meeting new people fun
+            and secure.
+          </p>
+        </header>
 
-        <button className="button" onClick={endCall}>
-          {isFinding ? `Stop` : `End`}
-        </button>
+        <main class="p-6">
+          <section class="mb-8">
+            <h2 class="text-3xl font-semibold mb-4">
+              Why Choose MikiTV for Online Video Calling?
+            </h2>
+            <p class="text-lg leading-relaxed">
+              MikiTV offers a simple and easy-to-use platform for random video
+              chatting. With features like secure connections and real-time
+              video calls, MikiTV is your go-to choice for meeting strangers
+              online.
+            </p>
+          </section>
 
-        <button className="button" onClick={toggleVideo}>
-          {isVideo ? <Video /> : <VideoOff />}
-        </button>
-        <button className="button" onClick={toggleMic}>
-          {isMic ? <Mic /> : <MicOff />}
-        </button>
+          <section class="mb-8">
+            <h2 class="text-3xl font-semibold mb-6">Features of MikiTV</h2>
+            <div class="space-y-6">
+              <article>
+                <h3 class="text-2xl font-medium mb-2">Random Video Chat</h3>
+                <p class="text-lg leading-relaxed">
+                  Experience the thrill of connecting with random people from
+                  around the globe. MikiTV's random video chat feature is
+                  designed to bring people together in a fun and exciting way.
+                </p>
+              </article>
+              <article>
+                <h3 class="text-2xl font-medium mb-2">
+                  Secure Online Video Calling
+                </h3>
+                <p class="text-lg leading-relaxed">
+                  At MikiTV, your privacy is our priority. All video calls are
+                  encrypted to ensure a safe and secure chatting experience.
+                </p>
+              </article>
+              <article>
+                <h3 class="text-2xl font-medium mb-2">Meet Strangers Online</h3>
+                <p class="text-lg leading-relaxed">
+                  Make new friends and expand your social circle by talking to
+                  strangers from different parts of the world.
+                </p>
+              </article>
+            </div>
+          </section>
+
+          <section class="mb-8">
+            <h2 class="text-3xl font-semibold mb-4">
+              How to Start Random Video Chat on MikiTV
+            </h2>
+            <ol class="list-decimal list-inside text-lg space-y-2">
+              <li>
+                Visit{" "}
+                <a
+                  href="https://mikitv.fun"
+                  class="text-blue-600 hover:underline"
+                >
+                  MikiTV.fun
+                </a>
+                .
+              </li>
+              <li>Click on the "Start Chat" button.</li>
+              <li>Allow camera and microphone access.</li>
+              <li>Begin your random video chat instantly!</li>
+            </ol>
+          </section>
+
+          <section>
+            <h2 class="text-3xl font-semibold mb-4">Join MikiTV Today</h2>
+            <p class="text-lg leading-relaxed">
+              Ready to connect with strangers through live video calls? Sign up
+              on MikiTV today and start chatting with people worldwide. It's
+              free, easy, and fun!
+            </p>
+          </section>
+        </main>
+
+        <footer class="bg-gray-800 text-white p-6 text-center">
+          <p>
+            &copy; 2025 MikiTV. All rights reserved. |{" "}
+            <a href="https://mikitv.fun" class="text-blue-400 hover:underline">
+              MikiTV.fun
+            </a>
+          </p>
+        </footer>
       </div>
-    </div>
+      {/* seo */}
+    </>
   );
 }
 

@@ -13,21 +13,11 @@ if (process.env.NODE_ENV == "development") {
 } else {
   exports.default = {
     // websiteURL: "https://www.crxinsider.com/",
-    baseUrl: "https://thadi.in",
+    baseUrl: "https://mikitv.fun",
     // imageURL: "https://team.thebestdeals.app/tbd_images",
     // imageURL: "https://cdn.crxinsider.com/,
     // baseURL: "http://localhost:5300/api"
     // backendURL: "https://www.crxinsider.com/api",
     // backendURL2: "https://www.crxinsider.com/sitemaps/",
-  };
-}
-
-if (process.env.NODE_ENV === "development") {
-  exports.defalut = {
-    baseUrl: "http://localhost:5200",
-  };
-} else {
-  exports.defalut = {
-    baseUrl: "https://thadi.in",
   };
 }
